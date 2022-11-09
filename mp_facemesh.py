@@ -5,6 +5,12 @@ import argparse
 from os.path import join
 from scipy.spatial import distance
 
+'''
+This script implements Google's MediaPipe Face Mesh solution, which forms the first part in the
+Mobile-based Pupillometry framework. The script requires a recorded file of an individual's
+pupillary response.
+'''
+
 # command line argument for crop level
 parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--crop', help="level of eye/iris crop 0-5 where 0 is iris", type=int, default=3)
@@ -69,16 +75,19 @@ with mp_face_mesh.FaceMesh(refine_landmarks=bool(args.crop == 0)) as face_mesh:
             frame_copy = frame.copy()
             mask = np.zeros(frame.shape, dtype=np.uint8)
             # draw eye regions on frame
+            # if only iris region is selected:
             if args.crop == 0:
                 (l_cx, l_cy), l_radius = cv2.minEnclosingCircle(mesh_points[LEYE])
                 (r_cx, r_cy), r_radius = cv2.minEnclosingCircle(mesh_points[REYE])
                 center_left = np.array([l_cx, l_cy], dtype=np.int32)
                 center_right = np.array([r_cx, r_cy], dtype=np.int32)
+                # drawing left and right irises on the video frame
                 cv2.circle(frame, center_left, int(l_radius), (0,255,0), 1, cv2.LINE_AA)
                 cv2.circle(frame, center_right, int(r_radius), (0,255,0), 1, cv2.LINE_AA)
                 if args.save:
                     cv2.circle(mask, center_right, int(r_radius), (255,255,255), -1)
             else:
+                # for all other eye zoom levels, draw the region polygons
                 cv2.polylines(frame, [mesh_points[LEYE]], True, (0,255,0), 1, cv2.LINE_AA)
                 cv2.polylines(frame, [mesh_points[REYE]], True, (0,255,0), 1, cv2.LINE_AA)
                 if args.save:
@@ -94,6 +103,7 @@ with mp_face_mesh.FaceMesh(refine_landmarks=bool(args.crop == 0)) as face_mesh:
                 result[new_mask==0] = (0,0,0)
 
                 # comment out this if block if don't want to perform pupil segmentation
+                # performing pupil segmentation for classical approach
                 if args.crop==0:                    
 
                     gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
@@ -134,11 +144,11 @@ with mp_face_mesh.FaceMesh(refine_landmarks=bool(args.crop == 0)) as face_mesh:
                     (x,y),radius = cv2.minEnclosingCircle(cnt)
                     center = (int(x),int(y))
                     radius = int(radius)
-
+                    
+                    # conversion to real-world units
                     x = 11.7 / (int(r_radius)*2)
                     diam.append(radius*2*x)
                     cv2.circle(result,center,radius,(0,255,0),1)
-
 
                 # result = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
 
@@ -153,5 +163,6 @@ with mp_face_mesh.FaceMesh(refine_landmarks=bool(args.crop == 0)) as face_mesh:
         if key ==ord('q'):
             break
 cap.release()
+# saving csv of pupil size for each frame
 np.savetxt(join(args.save[0], 'sizes.csv'), np.array(diam), delimiter=',')
 cv2.destroyAllWindows()
